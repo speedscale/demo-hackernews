@@ -46,7 +46,7 @@ class HNServer(BaseHTTPRequestHandler):
             dict = json.loads(article_req.read())
             ret[str(index)] = dict['title']
 
-        self.wfile.write(bytes(json.dumps(ret, indent=4), 'utf-8'))
+        self.wfile.write(json.dumps(ret, indent=4).encode("utf-8"))
 
 if __name__ == "__main__":
     host = "localhost"
