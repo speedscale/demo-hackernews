@@ -1,5 +1,5 @@
 # demo-hackernews
-Simple example Python script to pull info top 10 new articles titles from HackerNews.
+Simple example Python script to pull the titles of the top 10 new articles titles from HackerNews.
 Demonstrates incoming HTTP Server and outbound REST calls.
 
 ## Usage
