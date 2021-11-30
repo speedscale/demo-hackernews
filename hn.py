@@ -18,7 +18,6 @@
 # under the License.
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import time
 import urllib.request
 import json
 
