@@ -19,25 +19,33 @@
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import urllib.request
+import socks
+import socket
 import json
 
 # simple Python HTTP server that grabs the top 10 new Hacker News stories and returns them
 # as a json document
 class HNServer(BaseHTTPRequestHandler):
     def do_GET(self):
+        # set socks proxies to allow CLI to capture traffic
+        # NOTE: this is unnecessary with other Python libs or other languages like Go, Java, etc
+        #   We'll use urllib to give a complex example, however.
+        socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 4140)
+        socket.socket = socks.socksocket
+
+        # retrieve list of Hackernews stories by IDs
         resp = urllib.request.urlopen('https://hacker-news.firebaseio.com/v0/newstories.json')
         self.send_response(resp.code)
         self.send_header("Content-type", "application/json")
         self.end_headers()
 
         articles = resp.read()
-        # convert into an array of strings
+
+        # convert id bytes into an array of strings
         articles_string = articles.decode('utf-8')
         articles_string = articles_string.replace('[','')
         articles_string = articles_string.replace(']','')
         articles_list = articles_string.split(',')
-
-        # send back the titles as a JSON array
 
         # request the title of each article up to 10
         ret = {}
@@ -46,10 +54,11 @@ class HNServer(BaseHTTPRequestHandler):
             dict = json.loads(article_req.read())
             ret[str(index)] = dict['title']
 
+        # send back the titles as a JSON array
         self.wfile.write(json.dumps(ret, indent=4).encode("utf-8"))
 
 if __name__ == "__main__":
-    host = "localhost"
+    host = "0.0.0.0"
     port = 8080
 
     webServer = HTTPServer((host, port), HNServer)
