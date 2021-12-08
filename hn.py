@@ -22,17 +22,12 @@ import urllib.request
 import socks
 import socket
 import json
+import os
 
 # simple Python HTTP server that grabs the top 10 new Hacker News stories and returns them
 # as a json document
 class HNServer(BaseHTTPRequestHandler):
     def do_GET(self):
-        # set socks proxies to allow CLI to capture traffic
-        # NOTE: this is unnecessary with other Python libs or other languages like Go, Java, etc
-        #   We'll use urllib to give a complex example, however.
-        socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 4140)
-        socket.socket = socks.socksocket
-
         # retrieve list of Hackernews stories by IDs
         resp = urllib.request.urlopen('https://hacker-news.firebaseio.com/v0/newstories.json')
         self.send_response(resp.code)
@@ -58,6 +53,14 @@ class HNServer(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(ret, indent=4).encode("utf-8"))
 
 if __name__ == "__main__":
+    # if we're running inside a container we don't need the proxy support and it can break certain environments
+    if os.getenv('CONTAINER_MODE') != '1':
+        # set socks proxies to allow CLI to capture traffic
+        # NOTE: this is unnecessary with other Python libs or other languages like Go, Java, etc
+        socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 4140)
+        socket.socket = socks.socksocket
+        print("Initiatializing socks proxy")
+
     host = "0.0.0.0"
     port = 8080
 
