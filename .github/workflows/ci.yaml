@@ -1,0 +1,74 @@
+name: CI with Speedscale
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  SCENARIO_ID: 0f799f23-4789-4068-a727-5142c6cbdf78
+  TESTCONFIG_ID: standard
+  CLEANUP: true
+  TAG: ${{ github.ref_name }}
+  DEPLOYMENT: hndemo
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  CLUSTER_NAME: dev-decoy
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Build
+      run: docker build -t gcr.io/speedscale-demos/demo-hackernews:latest .
+
+  test:
+    name: Replay
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v2.0
+        id: install
+
+      - name: Setup cluster
+        run: |
+          curl -sL https://downloads.speedscale.com/speedctl/install | sh
+          echo "${{ secrets.speedctl_config }}" > ~/.speedscale/config.yaml
+          aws eks update-kubeconfig --name $CLUSTER_NAME
+          kubectl apply -f k8s/
+          echo "~/.speedscale" >> ${GITHUB_PATH}
+
+      - name: Install operator
+        run: |
+          speedctl deploy operator -e $CLUSTER_NAME | kubectl apply -f -
+
+      - name: Run replay
+        run: |
+          cat > patch.yaml <<EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: ${DEPLOYMENT}
+            annotations:
+              test.speedscale.com/scenarioid: "$SCENARIO_ID"
+              test.speedscale.com/testconfigid: "$TESTCONFIG_ID"
+              test.speedscale.com/cleanup: "$CLEANUP"
+              test.speedscale.com/tag: "$TAG"
+              sidecar.speedscale.com/inject: "true"
+          EOF
+          kubectl patch deployment ${DEPLOYMENT} --patch-file patch.yaml
+
+      - name: Check report status
+        run: |
+          REPORT_ID=$(speedctl get reports --tag $TAG |jq -r '.records[0].Id')
+          speedctl wait report --timeout 10m ${REPORT_ID}
